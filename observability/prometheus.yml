@@ -1,0 +1,27 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Scrape metrics exported by the OTel Collector (from services via OTLP)
+  - job_name: 'otel-collector'
+    static_configs:
+      - targets: ['otel-collector:8889']
+
+  # Direct scrape of Python service /metrics endpoints
+  - job_name: 'order-service'
+    static_configs:
+      - targets: ['order-service:8000']
+
+  - job_name: 'delivery-service'
+    static_configs:
+      - targets: ['delivery-service:8001']
+
+  # Node.js services expose /metrics via prom-client
+  - job_name: 'kitchen-service'
+    static_configs:
+      - targets: ['kitchen-service:3001']
+
+  - job_name: 'notification-service'
+    static_configs:
+      - targets: ['notification-service:3002']
