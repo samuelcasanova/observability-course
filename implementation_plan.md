@@ -9,23 +9,24 @@ A minimal 4-service food delivery simulation designed to generate rich observabi
 ```mermaid
 graph LR
     subgraph Services
-        OS[Order Service\nPython / FastAPI] -->|HTTP| KS[Kitchen Service\nNode.js / Express]
-        KS -->|HTTP| DS[Delivery Service\nPython / FastAPI]
-        DS -->|HTTP| NS[Notification Service\nNode.js / Express]
+        OS[Order Service<br/>Python / FastAPI] -->|HTTP| KS[Kitchen Service<br/>Node.js / Express]
+        KS -->|AMQP| RMQ[(RabbitMQ)]
+        RMQ -->|AMQP| DS[Delivery Service<br/>Python / FastAPI]
+        DS -->|HTTP| NS[Notification Service<br/>Node.js / Express]
     end
 
     subgraph Observability
         OS & KS & DS & NS --> OT[OpenTelemetry Collector]
-        OT --> J[Jaeger\nTraces]
-        OT --> P[Prometheus\nMetrics]
+        OT --> J[Jaeger<br/>Traces]
+        OT --> P[Prometheus<br/>Metrics]
         P --> G[Grafana]
         J --> G
-        OS & KS & DS & NS --> L[Loki\nLogs]
+        OS & KS & DS & NS --> L[Loki<br/>Logs]
         L --> G
     end
 ```
 
-**Flow:** A simulated order triggers a chain: `Order → Kitchen → Delivery → Notification`. Each hop propagates a W3C `traceparent` header, producing a single end-to-end trace.
+**Flow:** A simulated order triggers a chain: `Order → Kitchen → (RabbitMQ) → Delivery → Notification`. Each hop propagates trace context (via HTTP headers or AMQP headers), producing a single end-to-end trace.
 
 ---
 
@@ -75,7 +76,7 @@ observability-course/
 
 | Endpoint | Description |
 |---|---|
-| `POST /prepare` | Accepts an order, simulates food prep (random delay 1–5s), calls Delivery |
+| `POST /prepare` | Accepts an order, simulates food prep (random delay 1–5s), publishes to RabbitMQ |
 | `GET /health` | Health check |
 
 - Simulates preparation with `setTimeout`
@@ -87,9 +88,9 @@ observability-course/
 
 **Language:** Python 3.12 + FastAPI
 
-| Endpoint | Description |
+| Endpoint / Trigger | Description |
 |---|---|
-| `POST /assign` | Assigns a (fake) driver, simulates pickup delay, calls Notification |
+| **RabbitMQ Consumer** | Assigns a (fake) driver, simulates pickup delay, calls Notification via HTTP |
 | `GET /deliveries/{id}` | Returns delivery status |
 | `GET /health` | Health check |
 
@@ -116,6 +117,7 @@ observability-course/
 
 | Tool | Role | Port |
 |---|---|---|
+| **RabbitMQ** | Message Broker (async hand-off) | `5672`, `15672` (UI) |
 | **Jaeger** (all-in-one) | Trace backend | `16686` (UI) |
 | **OpenTelemetry Collector** | OTLP fan-out | `4317` (gRPC) |
 | **Prometheus** | Metrics scraping | `9090` |
@@ -139,7 +141,8 @@ python simulator/simulate.py --rate 1  # 1 order/second
 
 | Pattern | Where |
 |---|---|
-| Distributed trace (HTTP propagation) | All 4 services |
+| Distributed trace (HTTP propagation) | Order + Kitchen, Delivery + Notification |
+| Distributed trace (AMQP propagation) | Kitchen (producer) + Delivery (consumer) |
 | Span attributes (order ID, driver ID) | Order + Delivery |
 | Error spans | Kitchen (10% failures) |
 | Custom metrics (histograms, counters) | All services |
