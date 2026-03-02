@@ -19,14 +19,20 @@ scrape_configs:
         target_label: 'container'
       - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
         target_label: 'service'
+      - source_labels: ['__meta_docker_container_log_path']
+        target_label: '__path__'
+      - replacement: 'docker-logs'
+        target_label: 'job'
     pipeline_stages:
+      - docker: {}
       - json:
           expressions:
             level: level
+            msg: message
             trace_id: trace_id
             span_id: span_id
-            message: message
       - labels:
           level:
           trace_id:
           span_id:
+          msg:

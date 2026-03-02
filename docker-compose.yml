@@ -127,13 +127,15 @@ services:
       - '--storage.tsdb.path=/prometheus'
 
   loki:
-    image: grafana/loki:2.9.5
+    image: grafana/loki:3.0.0
     ports:
       - "3100:3100"
     command: -config.file=/etc/loki/local-config.yaml
 
   promtail:
-    image: grafana/promtail:2.9.5
+    image: grafana/promtail:3.0.0
+    environment:
+      - DOCKER_API_VERSION=1.44
     volumes:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock

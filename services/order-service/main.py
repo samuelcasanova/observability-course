@@ -20,11 +20,25 @@ from pythonjsonlogger import jsonlogger
 from models import Order, OrderRequest, OrderStatus
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
+class TraceIdFilter(logging.Filter):
+    def filter(self, record):
+        span = trace.get_current_span()
+        if span and span.get_span_context().is_valid:
+            sc = span.get_span_context()
+            record.trace_id = format(sc.trace_id, '032x')
+            record.span_id = format(sc.span_id, '16x')
+        else:
+            record.trace_id = None
+            record.span_id = None
+        return True
+
+
 logger = logging.getLogger("order-service")
 handler = logging.StreamHandler()
+handler.addFilter(TraceIdFilter())
 handler.setFormatter(
     jsonlogger.JsonFormatter(
-        fmt="%(asctime)s %(levelname)s %(name)s %(message)s",
+        fmt="%(asctime)s %(levelname)s %(name)s %(message)s %(trace_id)s %(span_id)s",
         rename_fields={"asctime": "timestamp", "levelname": "level"},
     )
 )
