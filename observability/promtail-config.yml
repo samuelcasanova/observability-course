@@ -25,12 +25,20 @@ scrape_configs:
         target_label: 'job'
     pipeline_stages:
       - docker: {}
-      - json:
-          expressions:
-            level: level
-            msg: message
-            trace_id: trace_id
-            span_id: span_id
+      - match:
+          selector: '{job="docker"} |~ "^{"'
+          stages:
+            - json:
+                expressions:
+                  level: level
+                  msg: message
+                  trace_id: trace_id
+                  span_id: span_id
+      - match:
+          selector: '{job="docker"} !~ "^{"'
+          stages:
+            - regex:
+                expression: '^(?:[\d-]+\s+[\d:.]+)?\s*(?P<level>\w+):?\s+(?P<msg>.*)$'
       - labels:
           level:
           trace_id:
