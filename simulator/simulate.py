@@ -16,6 +16,7 @@ import urllib.request
 import urllib.error
 import json
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 ORDER_SERVICE_URL = "http://localhost:8000"
 
@@ -37,7 +38,8 @@ def create_order() -> dict:
     return {"restaurant": restaurant, "items": items, "customer": customer}
 
 
-def post_order(payload: dict) -> dict | None:
+def post_order(payload: dict, seq: int) -> None:
+    """Send a single order and print the result. Runs in a background thread."""
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         f"{ORDER_SERVICE_URL}/orders",
@@ -46,43 +48,51 @@ def post_order(payload: dict) -> dict | None:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read())
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read())
+            print(f"  \u2713 [{seq}] Order {result.get('id')} \u2014 status: {result.get('status')}", flush=True)
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="replace")
-        print(f"  [HTTP {e.code}] {body[:120]}", flush=True)
-        return None
+        print(f"  [HTTP {e.code}] [{seq}] {body[:120]}", flush=True)
     except Exception as e:
-        print(f"  [ERROR] {e}", flush=True)
-        return None
+        print(f"  [ERROR] [{seq}] {e}", flush=True)
 
 
 def main():
     parser = argparse.ArgumentParser(description="Food Delivery Traffic Simulator")
     parser.add_argument("--rate", type=float, default=2.0, help="Seconds between orders (default: 2)")
     parser.add_argument("--count", type=int, default=0, help="Number of orders to send (0 = infinite)")
+    parser.add_argument("--workers", type=int, default=32, help="Max concurrent requests (default: 32)")
     args = parser.parse_args()
 
-    print(f"🚀 Simulator starting — 1 order every {args.rate}s", flush=True)
+    print(f"\U0001f680 Simulator starting \u2014 1 order every {args.rate}s (up to {args.workers} concurrent)", flush=True)
     if args.count:
         print(f"   Will send {args.count} orders then exit.", flush=True)
 
     sent = 0
     try:
-        while True:
-            order = create_order()
-            print(f"→ [{sent + 1}] Ordering {order['items']} from {order['restaurant']} for {order['customer']}...", flush=True)
-            result = post_order(order)
-            if result:
-                print(f"  ✓ Order {result.get('id')} — status: {result.get('status')}", flush=True)
-            sent += 1
-            if args.count and sent >= args.count:
-                print(f"\n✅ Done — {sent} orders sent.", flush=True)
-                break
-            time.sleep(args.rate)
+        with ThreadPoolExecutor(max_workers=args.workers) as executor:
+            while True:
+                order = create_order()
+                sent += 1
+                print(
+                    f"\u2192 [{sent}] Ordering {order['items']} from {order['restaurant']} for {order['customer']}...",
+                    flush=True,
+                )
+                # Fire-and-forget: the thread handles the HTTP call and response
+                # independently, so time.sleep(rate) is the only pacing delay.
+                executor.submit(post_order, order, sent)
+
+                if args.count and sent >= args.count:
+                    print(f"\n\u23f3 All {sent} orders dispatched \u2014 waiting for responses...", flush=True)
+                    break
+                time.sleep(args.rate)
+
     except KeyboardInterrupt:
-        print(f"\n⏹  Simulator stopped — {sent} orders sent.", flush=True)
+        print(f"\n\u23f9  Simulator stopped \u2014 {sent} orders dispatched.", flush=True)
         sys.exit(0)
+
+    print(f"\n\u2705 Done \u2014 {sent} orders sent.", flush=True)
 
 
 if __name__ == "__main__":

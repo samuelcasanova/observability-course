@@ -5,6 +5,7 @@ import express from "express";
 import {
   collectDefaultMetrics,
   Counter,
+  Gauge,
   Histogram,
   register,
 } from "prom-client";
@@ -29,6 +30,11 @@ const prepDuration = new Histogram({
   buckets: [0.5, 1, 2, 3, 5, 8],
 });
 
+const ordersInPreparation = new Gauge({
+  name: "kitchen_orders_in_preparation",
+  help: "Number of orders currently being prepared in the kitchen",
+});
+
 const FAILURE_RATE = 0.1; // 10% random failure to generate error spans
 
 app.get("/health", (_req, res) => {
@@ -46,6 +52,7 @@ app.post("/prepare", async (req, res) => {
 
   const span = tracer.startSpan("kitchen.prepare");
   const start = Date.now();
+  ordersInPreparation.inc();
 
   logger.info("Starting order preparation", {
     order_id,
@@ -60,6 +67,7 @@ app.post("/prepare", async (req, res) => {
     span.setStatus({ code: SpanStatusCode.ERROR, message: errMsg });
     span.end();
     preparedCounter.inc({ status: "failed" });
+    ordersInPreparation.dec();
     logger.error("Order preparation failed", {
       order_id,
       restaurant,
@@ -89,12 +97,14 @@ app.post("/prepare", async (req, res) => {
     await publishOrder({ order_id, restaurant, items });
     span.setStatus({ code: SpanStatusCode.OK });
     span.end();
+    ordersInPreparation.dec();
     return res.json({ status: "prepared", order_id });
   } catch (err) {
     span.recordException(err);
     span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
     span.end();
     preparedCounter.inc({ status: "failed" });
+    ordersInPreparation.dec();
     logger.error("Failed to publish order to queue", {
       order_id,
       error: err.message,
