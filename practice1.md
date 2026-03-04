@@ -10,11 +10,6 @@ The kitchen simulates a 1–5 second delay per order. Rather than just an averag
 
 Think about: the histogram metric that's already exposed. What Prometheus function unlocks percentile calculations from a histogram? Which percentile is most meaningful to a kitchen manager?
 
-
-histogram_quantile(0.95,rate(kitchen_preparation_duration_seconds_bucket{}))
-It's not working. I'm getting 0
-
-
 3. 📬 Queue depth vs. throughput
 Orders flow through RabbitMQ after preparation. You can observe the relationship between how fast orders are being dispatched into the queue and how fast they're being consumed on the other side.
 
