@@ -14,6 +14,7 @@ from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from prometheus_client import Counter
 from prometheus_fastapi_instrumentator import Instrumentator
 from pythonjsonlogger import jsonlogger
 
@@ -58,6 +59,9 @@ tracer = trace.get_tracer("order-service")
 
 HTTPXClientInstrumentor().instrument()
 
+# ─── Custom Metrics ───────────────────────────────────────────────────────────
+orders_created = Counter("order_service_orders_created_total", "Total orders created")
+
 # ─── In-Memory Store ───────────────────────────────────────────────────────────
 orders: dict[str, Order] = {}
 
@@ -78,7 +82,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Order Service", lifespan=lifespan)
 
 FastAPIInstrumentor.instrument_app(app, tracer_provider=tracer_provider)
-Instrumentator().instrument(app).expose(app)
+Instrumentator().instrument(app, metric_namespace="order_service").expose(app)
 
 
 # ─── Routes ────────────────────────────────────────────────────────────────────
@@ -105,6 +109,7 @@ async def create_order(request: OrderRequest):
             status=OrderStatus.RECEIVED,
         )
         orders[order_id] = order
+        orders_created.inc()
 
         logger.info(
             "Order created",

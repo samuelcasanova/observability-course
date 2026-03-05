@@ -185,7 +185,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Delivery Service", lifespan=lifespan)
 FastAPIInstrumentor.instrument_app(app, tracer_provider=tracer_provider)
-Instrumentator().instrument(app).expose(app)
+Instrumentator().instrument(app, metric_namespace="delivery_service").expose(app)
 
 
 @app.get("/health")
