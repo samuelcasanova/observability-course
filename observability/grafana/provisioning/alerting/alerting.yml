@@ -1,0 +1,77 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: System Alerts Group
+    folder: Kitchen Alerts
+    interval: 1m
+    rules:
+      - uid: aea68a37-536a-4deb-8cac-7682e2a0e3cd
+        title: Kitchen failure rate > 0.05
+        condition: C
+        for: 5m
+        annotations:
+          summary: Kitchen failure rate is too high
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: sum(rate(kitchen_orders_prepared_total{status="failed"}[$__rate_interval]))/sum(rate(kitchen_orders_prepared_total[$__rate_interval]))
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0.05
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: []
+                  reducer:
+                    params: []
+                    type: avg
+                  type: query
+              datasource:
+                name: Expression
+                type: __expr__
+                uid: __expr__
+              expression: A
+              hide: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+
+contactPoints:
+  - orgId: 1
+    name: Notification Service (Log Sink)
+    receivers:
+      - uid: c4c13363-8a65-4f3b-a6c1-b9907aaf3d9e
+        type: webhook
+        settings:
+          httpMethod: POST
+          url: http://notification-service:3002/notify
+
+policies:
+  - orgId: 1
+    receiver: Notification Service (Log Sink)
+    group_by:
+      - grafana_folder
+      - alertname
