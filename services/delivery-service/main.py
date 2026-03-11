@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 import random
-import time
 import uuid
 from contextlib import asynccontextmanager
 
@@ -110,7 +109,7 @@ async def process_delivery(order_id: str, restaurant: str) -> dict:
 
         # Simulate pickup delay
         pickup_delay = random.uniform(0.5, 2.0)
-        time.sleep(pickup_delay)
+        await asyncio.sleep(pickup_delay)
 
         estimated_minutes = random.randint(10, 40)
         delivery = {
